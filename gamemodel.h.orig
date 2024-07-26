@@ -1,0 +1,139 @@
+#ifndef GAMEMODEL_H
+#define GAMEMODEL_H
+
+#include "world.h"
+#include <iostream>
+#include <vector>
+#include <QEventLoop>
+#include <QTimer>
+#include <QObject>
+#include "myenemy.h"
+#include "myxenemy.h"
+#include "mytile.h"
+#include "myhealthpack.h"
+#include "mypenemy.h"
+#include "myprotagonist.h"
+#include "pathnode.h"
+
+
+class GameModel : public QObject
+{
+    Q_OBJECT
+public:
+    GameModel(World* gameWorld, std::shared_ptr<MyProtagonist> = nullptr, QObject* parent = nullptr);
+
+    void moveTo(int xPos, int yPos);
+    void printEnemyPositions() const;
+    void printHealthPackPositions() const;
+    void printPEnemies() const;
+    void printMyXEnemies() const;
+
+<<<<<<< HEAD
+    std::shared_ptr<Protagonist> const getProtagonist();
+    std::vector<std::shared_ptr<Enemy>> getEnemies();
+    std::vector<std::shared_ptr<MyHealthpack>> getHealthpacks();
+    std::vector<std::shared_ptr<MyTile>> getTiles();
+    std::pair<int,int> upDoor;
+    std::pair<int,int> downDoor;
+    int getRows() const;
+    int getCols() const;
+=======
+    const std::shared_ptr<MyProtagonist>& getProtagonist() const;
+    const std::vector<std::shared_ptr<MyEnemy>>& getEnemies() const;
+    const std::vector<std::shared_ptr<MyHealthpack>>& getHealthpacks() const;
+    const std::vector<std::shared_ptr<MyTile>>& getTiles() const;
+
+    int getRows() const {return gameWorld->getRows();}
+    int getCols() const {return gameWorld->getCols();}
+
+>>>>>>> 5296b116383b95381da33a703d9d8a2c6aed546e
+    MyTile* getTileAt(int xPos, int yPos);
+    void setDistWeight(float newDistWeight){distWeight = newDistWeight;}
+    void setAnimationDelay(int delay){animationDelay = delay;}
+
+    World* getWorld() const {return gameWorld;}
+    std::vector<int> calculatePath(MyTile* start, MyTile* dest);
+    void gotoNewPosition(int newX, int newY);
+    float calculateTotalTileWeightAlongPath(const std::vector<int>& path);
+
+    const std::vector<std::pair<int, int>>& getPath() const {return path;}
+    void clearPath() {path.clear();}
+
+<<<<<<< HEAD
+    void setTiles(const std::vector<std::shared_ptr<MyTile>>& newTiles) {
+        tiles = newTiles;
+    }
+
+    void setEnemies(const std::vector<std::shared_ptr<Enemy>>& newEnemies) {
+        enemies = newEnemies;
+    }
+
+    void setHealthpacks(const std::vector<std::shared_ptr<MyHealthpack>>& newHealthpacks) {
+        healthpacks = newHealthpacks;
+    }
+
+    void setProtagonist(const std::shared_ptr<Protagonist>& newProtagonist) {
+        protagonist = newProtagonist;
+    }
+    std::pair<int,int> getUpDoor() {return upDoor;}
+    std::pair<int,int> getDownDoor() {return downDoor;}
+
+    void generateDoors();
+    std::pair<int,int> randCor();
+    bool checkCoincidence(const std::pair<int,int>& cor) const;
+
+=======
+>>>>>>> 5296b116383b95381da33a703d9d8a2c6aed546e
+private:
+    World* gameWorld;
+    std::shared_ptr<MyProtagonist> protagonist;
+    std::vector<std::shared_ptr<MyTile>> tiles;
+    std::vector<std::shared_ptr<MyEnemy>> enemies ;
+    std::vector<std::shared_ptr<MyHealthpack>> healthpacks;
+    std::unique_ptr<MyPEnemy> myPEnemy;
+    std::vector<PathNode> pathNodes;
+    std::vector<std::pair<int, int>> path;
+    float distWeight = 0.0f;
+    int animationDelay;
+    bool strategyEnabled = true;
+
+    void initializeProtagonist(std::shared_ptr<MyProtagonist>& newProtagonist);
+    void initializeWorld();
+    void initializeEnemies();
+    void initializeTiles();
+    void initializePathNodes();
+    void initializeHealthPacks();
+    void replaceEnemiesWithXEnemies();
+
+
+signals:
+    void poisonedTilesUpdated(const std::vector<std::pair<int, int>>& positions);
+    void levelChanged(int levelChange);
+
+private slots:
+    void handlePoisonLevelUpdated(float poisonLevel, const PEnemy* pEnemy);
+
+public slots:
+    void onAnimationDelayChanged(int & value);
+    void onHeuristicCostChanged(float & value);
+    void onStrategyEnabledChanged(bool & enabled);
+};
+
+inline const std::shared_ptr<MyProtagonist>& GameModel::getProtagonist() const {
+    return protagonist;
+}
+
+inline const std::vector<std::shared_ptr<MyEnemy>>& GameModel::getEnemies() const {
+    return enemies;
+}
+
+inline const std::vector<std::shared_ptr<MyHealthpack>>& GameModel::getHealthpacks() const {
+    return healthpacks;
+}
+
+inline const std::vector<std::shared_ptr<MyTile>>& GameModel::getTiles() const {
+    return tiles;
+}
+
+
+#endif // GAMEMODEL_H

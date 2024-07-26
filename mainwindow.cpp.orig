@@ -1,0 +1,100 @@
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include "QCompleter"
+#include <qstringlistmodel.h>
+
+MainWindow::MainWindow(std::shared_ptr<Controller> controller, std::shared_ptr<GameModel> gameModel, QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+    ,controller(controller)
+    ,gameModel(gameModel)
+{
+    connect(gameModel->getProtagonist().get(), &Protagonist::healthChanged, this, &MainWindow::onHealthChanged);
+    connect(gameModel->getProtagonist().get(), &Protagonist::energyChanged, this, &MainWindow::onEnergyChanged);
+
+    ui->setupUi(this);
+    //textView = std::make_shared<TextView>(gameModel , this);
+    //setCentralWidget(textView.get());  // Use .get() to obtain raw pointer
+    // Set the world for the TextView
+
+    //Command options
+    QStringList commandList;
+    commandList << "up" << "down" << "left" << "right" << "help" ;
+
+    //Autocompletion
+    QCompleter* completer = new QCompleter(commandList,this);
+    completer -> setCaseSensitivity(Qt::CaseInsensitive);
+
+    // Create a QLineEdit widget for entering commands
+    commandLineEdit = new QLineEdit(this);
+    commandLineEdit->setPlaceholderText("Enter command...");
+    commandLineEdit->setCompleter(completer);
+
+    // Create a QPushButton for submitting the command
+    submitButton = new QPushButton("Submit", this);
+
+    // Connect the clicked signal of the submitButton to the onSubmitButtonClicked slot
+    connect(submitButton, &QPushButton::clicked, this, &MainWindow::onSubmitButtonClicked);
+
+    // Create a layout to organize your widgets
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(commandLineEdit);
+    layout->addWidget(submitButton);
+
+    // Initialize the TextView and View with the provided gameModel
+    textView = std::make_shared<TextView>(controller, gameModel, this);
+    //view = std::make_shared<View>(gameModel, this);
+    healthBar = findChild<QProgressBar*>("healthBar");
+    healthBar -> setValue(100);
+    energyBar = findChild<QProgressBar*>("energyBar");
+    energyBar -> setValue(100);
+
+
+    // Add any other widgets you want in the layout
+    layout->addWidget(textView.get());
+    layout->addWidget(healthBar);
+    layout->addWidget(energyBar);
+    //layout->addWidget(view.get());
+
+    // Create a central widget and set the layout
+    QWidget *centralWidget = new QWidget(this);
+    centralWidget->setLayout(layout);
+    setCentralWidget(centralWidget);
+<<<<<<< HEAD
+    setCentralWidget(graphicview.get());
+
+    // Set the world for the TextView
+    // Set the world for the TextView and View
+    world = gameModel->getWorld();
+    // textView->setWorld(world);
+    // view->setWorld(world);
+=======
+>>>>>>> 669174e5a7ce168b52d4d9d7a66164fecd27d1ca
+}
+
+void MainWindow::onSubmitButtonClicked()
+{
+    // Handle the submit button click event, e.g., trigger a command processing
+    QString enteredText = commandLineEdit->text();
+    qDebug() << "Submit button clicked with text: " << enteredText;
+    if (controller)
+        controller->handleCommand(enteredText);
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+void MainWindow::onHealthChanged(int health)
+{
+    // Assuming health ranges from 0 to 100
+    healthBar->setValue(health);
+}
+
+void MainWindow::onEnergyChanged(int energy)
+{
+    // Assuming energy ranges from 0 to 100
+    energyBar->setValue(energy);
+}
+

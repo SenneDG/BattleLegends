@@ -1,0 +1,391 @@
+#include "graphicview.h"
+#include <QGraphicsView>
+#include "levelmanager.h"
+
+Graphicview::Graphicview(std::shared_ptr<LevelManager> levelManager)
+    :controller(levelManager->getController()),
+    levelManager(levelManager)
+{
+    gameModel = levelManager -> getCurrentGameModel();
+
+    connect(gameModel->getProtagonist().get(), &MyProtagonist::posChanged,
+            this, &Graphicview::handleProtagonistPositionChanged);
+    connect(levelManager.get(), &LevelManager::modelChanged, this, &Graphicview::handleModelChanged);
+
+    auto enemies = gameModel->getEnemies();
+    for (const auto& enemy : enemies) {
+        connect(enemy.get(), &MyEnemy::dead, this, &Graphicview::handleEnemyDead);
+    }
+
+    auto healthpacks = gameModel->getHealthpacks();
+    for (const auto& healthpack : healthpacks) {
+        connect(healthpack.get(), &MyHealthpack::consumedChanged, this, &Graphicview::handleHealthpackConsumed);
+    }
+
+    gridWidth = 25;
+    gridHeight = 25;
+    Tile1 = std::make_shared<QPixmap>();
+    Tile2 = std::make_shared<QPixmap>();
+    Tile3 = std::make_shared<QPixmap>();
+    doorup = std::make_shared<QPixmap>();
+    doordown = std::make_shared<QPixmap>();
+    protagonistgv = std::make_shared<QPixmap>();
+    modelSceneMap = std::map<std::shared_ptr<GameModel>, std::shared_ptr<QGraphicsScene>>();
+    // Create a new QGraphicsScene
+    currentScene = std::make_shared<QGraphicsScene>();
+    view = std::make_shared<QGraphicsView>();
+    ProtItem = std::make_shared<QGraphicsPixmapItem>();
+    modelSceneMap[gameModel] = currentScene;
+    loadTileG();
+    Loadmap();
+}
+
+
+void Graphicview::Loadmap()
+{
+    gameModel = levelManager -> getCurrentGameModel();
+    tiles = gameModel->getTiles();
+    protagonist = gameModel->getProtagonist();
+    connect(gameModel.get(), &GameModel::poisonedTilesUpdated, this, &Graphicview::PoisonedTilesUpdated);
+    std::vector<std::vector<std::pair<int, int>>> poisonedTilePositionsVec; // Track poisoned tile positions
+    std::vector<std::map<std::pair<int, int>, QGraphicsPixmapItem*>> poisonedTileItemsVec; // Track poison items
+
+    numColumns = gameModel->getWorld()->getCols();
+    numRows = gameModel->getWorld()->getRows();
+
+    // Calculate the center position based on the protagonist's position
+    int centerPosX = protagonist->getXPos() * gridWidth + gridWidth / 2;
+    int centerPosY = protagonist->getYPos() * gridHeight + gridHeight / 2;
+
+    // Set the new center position for the view
+    centerOn(centerPosX, centerPosY);
+
+    drawScene();
+
+    loadHealthpack();
+    loadEnemy();
+    updateProtagonist();
+    setScene(currentScene.get());
+    this->centerOn(centerPosX, centerPosY);
+    this->setScene(currentScene.get());
+    this->showFullScreen();
+
+}
+
+void Graphicview::updateProtagonist(){
+
+    // Set the scaled pixmap as the image for the protagonist
+    ProtItem->setPixmap(*protagonistgv);
+
+    // Set the position for the protagonist based on its coordinates
+    ProtItem->setPos(protagonist->getXPos() * gridWidth , protagonist->getYPos() * gridHeight);
+    ProtItem->setZValue(3);
+    currentScene->addItem(ProtItem.get());
+
+    // Calculate the center position based on the protagonist's position
+    int centerPosX = protagonist->getXPos() * gridWidth + gridWidth / 2;
+    int centerPosY = protagonist->getYPos() * gridHeight + gridHeight / 2;
+
+    this->centerOn(centerPosX,centerPosY);
+}
+
+void Graphicview::drawScene() {
+    // Check if the scene is already populated
+    if (!currentScene->items().isEmpty()) {
+        return;
+    }
+
+    // Set the visible area in the view's viewport
+    int visibleRange = 30;
+    int startX = std::max(0, protagonist->getXPos() - visibleRange);
+    int endX = std::min(numColumns - 1, protagonist->getXPos() + visibleRange);
+    int startY = std::max(0, protagonist->getYPos() - visibleRange);
+    int endY = std::min(numRows - 1, protagonist->getYPos() + visibleRange);
+
+    // Iterate through the tiles and create graphical items for each tile
+    for (int row = startY; row <= endY; ++row) {
+        for (int col = startX; col <= endX; ++col) {
+
+            // Get the index in the Tiles vector based on row and col
+            size_t index = row * numColumns + col;
+
+            if (index < tiles.size()) {
+                // Scale the floating-point grayscale value to the integer range [0, 255]
+                int scaledGrayValue = static_cast<int>(tiles[index]->getValue() * 255.0f);
+
+                // Ensure the scaled value stays within the valid range [0, 255]
+                scaledGrayValue = std::clamp(scaledGrayValue, 0, 255);
+
+                QGraphicsPixmapItem* rectItem = new QGraphicsPixmapItem();
+
+                if (scaledGrayValue >= 0 && scaledGrayValue <= 100) {
+                    rectItem->setPixmap(*Tile3);
+
+                } else if (scaledGrayValue <= 240) {
+                    rectItem->setPixmap(*Tile2);
+
+                } else if (scaledGrayValue >= 240) {
+                    rectItem->setPixmap(*Tile1);
+
+                }
+                rectItem->setPos(col * gridWidth, row * gridHeight);
+                currentScene->addItem(rectItem);
+            }
+        }
+    }
+
+<<<<<<< HEAD
+    std::pair<int,int> upDoor = gameModel->getUpDoor();
+    std::pair<int,int> downDoor = gameModel->getDownDoor();
+    if (levelManager->getCurrentLevel() != levelManager->getNrOfLevels()-1){
+        QGraphicsPixmapItem* doorItem = new QGraphicsPixmapItem();
+        doorItem->setPixmap(*doorup);
+        doorItem->setPos(upDoor.first * gridWidth, upDoor.second * gridHeight);
+        currentScene->addItem(doorItem);
+    }
+
+    if (levelManager->getCurrentLevel()!=0){
+        QGraphicsPixmapItem* doorItem2 = new QGraphicsPixmapItem();
+        doorItem2->setPixmap(*doordown);
+        doorItem2->setPos(downDoor.first * gridWidth, downDoor.second * gridHeight);
+        currentScene->addItem(doorItem2);
+    }
+
+=======
+    QGraphicsPixmapItem* doorItem = new QGraphicsPixmapItem();
+    doorItem->setPixmap(*door);
+    std::pair<int,int> upDoor = gameModel->getUpDoor();
+    std::pair<int,int> downDoor = gameModel->getDownDoor();
+    doorItem->setPos(upDoor.first * gridWidth, upDoor.second * gridHeight);
+    currentScene->addItem(doorItem);
+
+    QGraphicsPixmapItem* doorItem2 = new QGraphicsPixmapItem();
+    doorItem2->setPixmap(*door);
+    doorItem2->setPos(downDoor.first * gridWidth, downDoor.second * gridHeight);
+    currentScene->addItem(doorItem2);
+>>>>>>> c96a0d476b7d00918ad7add5ec3e8ef2cbe29c75
+}
+
+
+void Graphicview::loadHealthpack(){
+    for (auto& healthPack : gameModel->getHealthpacks()) {
+        QGraphicsPixmapItem* healthpackItem = new QGraphicsPixmapItem();
+        MyHealthpackGraphicview* healthpack = new MyHealthpackGraphicview(healthPack, gridWidth);
+        // Create a new QGraphicsPixmapItem for each health pack
+        healthpackItem->setPixmap(*healthpack->returnStatusHealthpack(healthPack));
+        healthpackItem->setPos(healthPack->getXPos() * gridWidth, healthPack->getYPos() * gridHeight);
+        // Set a lower Z-value for health packs
+        healthpackItem->setZValue(2); // You may need to adjust this value based on your requirements
+
+        currentScene->addItem(healthpackItem);
+    }
+}
+
+void Graphicview::updateHealthpack(){
+    for (auto& healthPack : gameModel->getHealthpacks()){
+        if (healthPack->getXPos()== protagonist->getXPos() && healthPack->getYPos()== protagonist->getYPos() ){
+            std::cout<<healthPack->getXPos()<<", "<< protagonist->getXPos()<<", "<< healthPack->getYPos()<< ", "<<  protagonist->getYPos()<<std::endl;
+            QGraphicsPixmapItem* healthpackItem = new QGraphicsPixmapItem();
+            MyHealthpackGraphicview* healthpack = new MyHealthpackGraphicview(healthPack, gridWidth);
+            // Create a new QGraphicsPixmapItem for each health pack
+            healthpackItem->setPixmap(*healthpack->returnStatusHealthpack(healthPack));
+            healthpackItem->setPos(healthPack->getXPos() * gridWidth, healthPack->getYPos() * gridHeight);
+            // Set a lower Z-value for health packs
+            healthpackItem->setZValue(2); // You may need to adjust this value based on your requirements
+            currentScene->addItem(healthpackItem);
+        }
+    }
+}
+
+void Graphicview::loadEnemy(){
+    for (auto& enemy : gameModel->getEnemies()) {
+        QGraphicsPixmapItem* enemyItem = new QGraphicsPixmapItem();
+        // Create a new QGraphicsPixmapItem for each enemy
+        MyEnemyGraphicview* enemyGraph = new MyEnemyGraphicview(enemy,gridWidth);
+        // Create a new QGraphicsPixmapItem for each health pack
+        enemyItem->setPixmap(*enemyGraph->returnStatusEnemy(enemy));
+        enemyItem->setPos(enemy->getXPos() * gridWidth, enemy->getYPos() * gridHeight);
+        enemyItem->setZValue(2);
+        currentScene->addItem(enemyItem);
+    }
+}
+
+
+void Graphicview::updateEnemy(){
+    for (auto& enemy : gameModel->getEnemies()) {
+        if (enemy->getXPos()== protagonist->getXPos() && enemy->getYPos()== protagonist->getYPos() ){
+            QGraphicsPixmapItem* enemyItem = new QGraphicsPixmapItem();
+            // Create a new QGraphicsPixmapItem for each enemy
+            MyEnemyGraphicview* enemyGraph = new MyEnemyGraphicview(enemy,gridWidth);
+            // Create a new QGraphicsPixmapItem for each health pack
+            enemyItem->setPixmap(*enemyGraph->returnStatusEnemy(enemy));
+            enemyItem->setPos(enemy->getXPos() * gridWidth, enemy->getYPos() * gridHeight);
+            enemyItem->setZValue(2);
+            currentScene->addItem(enemyItem);
+        }
+    }
+}
+
+void Graphicview::PoisonedTilesUpdated(const std::vector<std::pair<int, int>>& poisonedTilePositions){
+    // Remove poison items associated with tiles that are no longer poisoned
+    for (auto& poisonItems : poisonedTileItemsVec) {
+        for (auto it = poisonItems.begin(); it != poisonItems.end();) {
+            if (std::find(poisonedTilePositions.begin(), poisonedTilePositions.end(), it->first) == poisonedTilePositions.end()) {
+                currentScene->removeItem(it->second);
+                delete it->second;
+                it = poisonItems.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // Store the poisoned tile positions
+    poisonedTilePositionsVec.push_back(poisonedTilePositions);
+    std::map<std::pair<int,int>, QGraphicsPixmapItem*> poisonItems;
+
+    for (auto& pos : poisonedTilePositions) {
+        if (poisonItems.find(pos) == poisonItems.end()) {
+            QGraphicsPixmapItem* poisonItem = new QGraphicsPixmapItem();
+            poisonItem->setPixmap(*Poison);
+            poisonItem->setPos(pos.first * gridWidth, pos.second * gridHeight);
+            poisonItem->setZValue(1);
+            currentScene->addItem(poisonItem);
+            poisonItems[pos] = poisonItem;
+        }
+    }
+
+    poisonedTileItemsVec.push_back(poisonItems);
+    update();
+}
+
+void Graphicview::keyPressEvent(QKeyEvent *event){
+    Q_UNUSED(event);
+    controller->handleKeyPress(event);
+
+    // Clear the existing path
+    clearPath();
+    drawScene();
+    updateEnemy();
+    updateHealthpack();
+    updateProtagonist();
+
+}
+
+void Graphicview::handleProtagonistPositionChanged(){
+    // Clear the existing path
+    clearPath();
+
+    // Draw the new path
+    drawPath();
+    drawScene();
+    updateProtagonist();
+}
+
+void Graphicview::handleEnemyDead(){
+    updateEnemy();
+}
+
+
+void Graphicview::handleHealthpackConsumed(){
+    updateHealthpack();
+}
+
+void Graphicview::loadTileG(){
+    QPixmap Tile1QP(":/images/sand.png");
+    Tile1 = std::make_shared<QPixmap>(Tile1QP.scaled(gridWidth, gridWidth, Qt::KeepAspectRatio));
+    QPixmap Tile2QP(":/images/grass.png");
+    Tile2 = std::make_shared<QPixmap>(Tile2QP.scaled(gridWidth, gridWidth, Qt::KeepAspectRatio));
+    QPixmap Tile3QP(":/images/wall.png");
+    Tile3 = std::make_shared<QPixmap>(Tile3QP.scaled(gridWidth, gridWidth, Qt::KeepAspectRatio));
+    QPixmap Mario(":/images/mario.png");
+    protagonistgv = std::make_shared<QPixmap>(Mario.scaled(gridWidth, gridHeight, Qt::KeepAspectRatio));
+    QPixmap PoisonQP(":/images/posion.png");
+    Poison = std::make_shared<QPixmap>(PoisonQP.scaled(gridWidth,gridWidth, Qt::KeepAspectRatio));
+    QPixmap doorupQP(":/images/doorup.png");
+    doorup = std::make_shared<QPixmap>(doorupQP.scaled(gridWidth,gridWidth, Qt::KeepAspectRatio));
+    QPixmap doordownQP(":/images/doordown.png");
+    doordown = std::make_shared<QPixmap>(doordownQP.scaled(gridWidth,gridWidth, Qt::KeepAspectRatio));
+    std::cout<< "done loading Images"<< std::endl;
+}
+
+void Graphicview::handleModelChanged(std::shared_ptr<GameModel> newModel){
+    updateProtagonist();
+    auto it = modelSceneMap.find(newModel);
+    if (it != modelSceneMap.end()){
+        currentScene = it->second;
+    }
+    else{
+        // Create a new QGraphicsScene
+        std::shared_ptr<QGraphicsScene> scene = std::make_shared<QGraphicsScene>();
+        modelSceneMap[newModel] = scene;
+        currentScene = modelSceneMap[newModel];
+    }
+    std::cout << "Map size: " << modelSceneMap.size() << std::endl;
+    gameModel = newModel;
+
+    setScene(currentScene.get());
+    Loadmap();
+}
+
+void Graphicview::clearPath()
+{
+    // Remove previous path items from the scene
+    QList<QGraphicsItem*> items = currentScene->items();
+    for (QGraphicsItem* item : items)
+    {
+        if (item->type() == QGraphicsRectItem::Type) {
+            currentScene->removeItem(item);
+            delete item;
+        }
+    }
+}
+
+void Graphicview::drawPath()
+{
+    if (gameModel) {
+        // Draw the path
+        const std::vector<std::pair<int, int>>& path = gameModel->getPath();
+        QBrush pathBrush(Qt::red);
+
+        for (const auto& position : path) {
+            int x = position.first * gridWidth;
+            int y = position.second * gridHeight;
+
+            QGraphicsRectItem* pathRect = new QGraphicsRectItem(x, y, gridWidth, gridHeight);
+            pathRect->setBrush(pathBrush);
+            currentScene->addItem(pathRect);
+        }
+    }
+}
+
+void Graphicview::mousePressEvent(QMouseEvent *event)
+{
+    // Check if the mouse event is within the scene boundaries
+    if (currentScene->sceneRect().contains(event->pos()))
+    {
+        // Calculate the grid position based on the mouse click
+        int clickedCol = event->pos().x() / gridWidth;
+        int clickedRow = event->pos().y() / gridHeight;
+
+        // Update the protagonist's position
+        gameModel->gotoNewPosition(clickedCol, clickedRow);
+
+        // Redraw the scene
+        clearPath();
+        drawPath();
+        drawScene();
+        updateProtagonist();
+        updateHealthpack();
+        updateEnemy();
+    }
+    else
+    {
+        // Handle the case where the mouse click is outside the scene boundaries
+        // (Optional: Add specific behavior or logging)
+        qDebug() << "Mouse click outside the scene boundaries";
+    }
+}
+
+
+
